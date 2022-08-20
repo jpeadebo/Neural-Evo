@@ -1,8 +1,8 @@
 import random
 import enum
 
-bias = 1  # 0 for off 1 for on
-
+bias = 0  # 0 for off 1 for on
+mutatePower = .05
 
 class NeuralEvolution:
 
@@ -28,6 +28,7 @@ class NeuralEvolution:
 
     # run this as many times as needed to calculate the nn fitness
     def getAgentDecisions(self, inputs):
+        self.resetAgents()
         self.setInputs(inputs)
         decisions = []
         for agent in self.agents:
@@ -61,7 +62,6 @@ class NeuralEvolution:
                     break
 
         # num parents = sum(parents)
-        print(parents)
         return parents, [maxFittnesSpot, secondMaxFitnessSpot]
 
     def getParents(self, parents):
@@ -93,6 +93,10 @@ class NeuralEvolution:
 
         return child, child2
 
+    def mutateAgents(self):
+        for agent in self.agents:
+            agent.mutateConnectionWeights(mutatePower)
+
     def resetAgents(self):
         for agent in self.agents:
             agent.clear()
@@ -106,7 +110,14 @@ class NeuralEvolution:
         # checks if the correct number of parents were made
         if len(parentList) == self.numParents:
             numChildren = self.genSize
-            children = [self.agents[bestAgentsSpot[0]], self.agents[bestAgentsSpot[1]]]
+
+            # creates new agents of the best two agents and sets their connections
+            bestAgentOne = Network(self.framework)
+            bestAgentTwo = Network(self.framework)
+            bestAgentOne.setConnections(self.agents[bestAgentsSpot[0]].connections)
+            bestAgentTwo.setConnections(self.agents[bestAgentsSpot[1]].connections)
+
+            children = [bestAgentOne, bestAgentTwo]
             for i in range(int((numChildren-2) / 2)):
                 # forces consistent amount of uses for each parent, and then a rand other parent
                 dad = parentList[i % len(parentList)]
@@ -115,13 +126,12 @@ class NeuralEvolution:
                 children.append(twins[0])
                 children.append(twins[1])
 
-            print(children)
             if len(children) == self.genSize:
                 self.agents = children
             else:
                 raise Exception("incompatible new gen size, children size:, gen size:", len(children), self.genSize)
 
-            self.resetAgents()
+            self.mutateAgents()
         else:
             raise Exception("incorrect number of parents", len(parentList), self.numParents, "parents", parentList)
 
@@ -132,12 +142,11 @@ class Network:
     def __init__(self, framework):
         self.framework = framework
         # adds a bias to the network if needed, for testing this will be turned off for now
-        self.inputs = self.framework[0] + bias
+        self.framework[0] += bias
+        self.inputs = self.framework[0]
         self.outputs = self.framework[len(self.framework) - 1]
         # initiates a network with random weights between -1 and 1
         self.nodes = [0 for i in range(sum(self.framework))]
-        if bias == 1:
-            self.nodes[self.inputs-1] = 1 # check if this is actually setting bias node to 1
         self.connections = []
         self.setBaseConnections()
 
@@ -174,9 +183,17 @@ class Network:
                                     start + self.framework[layers] + self.framework[layers + 1]):
                     self.createNewConnection(inputs, output, random.uniform(-1, 1), layers)
 
+    def mutateConnectionWeights(self, mutatePower):
+        maxConnection = 0
+        for connections in self.connections:
+            maxConnection = connections["weight"] if maxConnection < connections["weight"] else maxConnection
+
+        for connections in self.connections:
+            connections["weight"] += random.uniform(-maxConnection, maxConnection) * mutatePower
+
     def clear(self):
-        for i in self.nodes:
-            i = 0
+        for i in range(len(self.nodes)):
+            self.nodes[i] = 0
 
     # confirms that the input fits the input size of the network, throws error if it isn't
     def setInputs(self, inputs):
@@ -210,18 +227,18 @@ class Network:
 
 def testXor():
     # inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
-    inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
-    hiddenLayer1Length = 3
-    hiddenLayer2Length = 3
+    inputs = [[0, 1, 1], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
+    hiddenLayer1Length = 2
+    hiddenLayer2Length = 2
     numOutputs = 1
 
     size = 100
     network = NeuralEvolution(size, [len(inputs[0])-1, hiddenLayer1Length, hiddenLayer2Length, numOutputs])
 
-    runs = 100
+    runs = 10
     for i in range(runs):
-        print(i)
-        # creating inputs, since this is a simple problem the agent only needs to check once so inputs are always the same
+        print("-----------------------", i, "-----------------------",)
+        # creating inputs, this is a simple problem the agent only needs to check once so inputs are always the same
         input = [inputs[i % 4]] * size
         agentDecisions = network.getAgentDecisions(input)
 
@@ -230,6 +247,6 @@ def testXor():
 
         # creates the next generation and updates the agents to that new list of agents
         network.createNextGeneration(agentFitness)
-    print(agentDecisions)
+        print(agentDecisions)
 
 testXor()
