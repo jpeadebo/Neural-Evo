@@ -1,7 +1,7 @@
 import random
 import enum
 
-bias = 0  # 0 for off 1 for on
+bias = 1  # 0 for off 1 for on
 
 
 class NeuralEvolution:
@@ -61,6 +61,7 @@ class NeuralEvolution:
                     break
 
         # num parents = sum(parents)
+        print(parents)
         return parents, [maxFittnesSpot, secondMaxFitnessSpot]
 
     def getParents(self, parents):
@@ -122,7 +123,7 @@ class NeuralEvolution:
 
             self.resetAgents()
         else:
-            raise Exception("incorrect number of parents", len(parentList), self.numParents)
+            raise Exception("incorrect number of parents", len(parentList), self.numParents, "parents", parentList)
 
 
 # confirm network works with a bias node
@@ -131,11 +132,12 @@ class Network:
     def __init__(self, framework):
         self.framework = framework
         # adds a bias to the network if needed, for testing this will be turned off for now
-        self.framework[0] += bias
-        self.inputs = self.framework[0]
+        self.inputs = self.framework[0] + bias
         self.outputs = self.framework[len(self.framework) - 1]
         # initiates a network with random weights between -1 and 1
         self.nodes = [0 for i in range(sum(self.framework))]
+        if bias == 1:
+            self.nodes[self.inputs-1] = 1 # check if this is actually setting bias node to 1
         self.connections = []
         self.setBaseConnections()
 
@@ -218,6 +220,7 @@ def testXor():
 
     runs = 100
     for i in range(runs):
+        print(i)
         # creating inputs, since this is a simple problem the agent only needs to check once so inputs are always the same
         input = [inputs[i % 4]] * size
         agentDecisions = network.getAgentDecisions(input)
