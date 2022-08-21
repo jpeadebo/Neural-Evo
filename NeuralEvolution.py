@@ -175,8 +175,8 @@ class Network:
         # creates framework, adds bias nodes if requested, the output node doesn't need a bias so exclude that
         self.framework = [layerSize + bias for layerSize in framework[:-1]]
         self.framework.append(framework[-1])
-        # create a 2d array of nodes where [layer][node] with the last node of each layer being a bias node if requested
 
+        # create a 2d array of nodes where [layer][node] with the last node of each layer being a bias node if requested
         self.nodes = []
         self.setBaseNodes()
 
@@ -203,6 +203,7 @@ class Network:
 
             self.nodes.append(nodeLayer)
 
+    # returns a specified node based on its node networkPosition
     def getNodeOffPosition(self, position):
         for layerIndex, layer in enumerate(self.nodes):
             for nodeIndex, node in enumerate(layer):
@@ -210,6 +211,7 @@ class Network:
                     return self.nodes[layerIndex][nodeIndex]
         return Exception("position doesn't exist", position)
 
+    # updates a specific node based off of its node networkPosition
     def setNodeOffPosition(self, position, value):
         for layerIndex, layer in enumerate(self.nodes):
             for nodeIndex, node in enumerate(layer):
@@ -237,6 +239,8 @@ class Network:
         else:
             return 0
 
+    # creates the intial set of connections in the form of a 2d array, the first dim is layers,
+        # the second is each connection in that layer
     def setBaseConnections(self):
         for layers in range(len(self.framework[:-1])):
             layerConnection = []
@@ -254,6 +258,7 @@ class Network:
     def setConnections(self, connections):
         self.connections = connections
 
+    # checks if input size is correct, if it is it sets the node values of input layer - bias to the input vector
     def setInputs(self, inputs):
         if len(inputs) == len(self.nodes[0]) - bias:
             for inputPos, input in enumerate(inputs):
@@ -261,9 +266,11 @@ class Network:
         else:
             raise Exception("incompatable input size", len(inputs), len(self.nodes[0]) - bias)
 
+    # uses getNodeValueLayer to return the output layer values
     def getOutputs(self):
         return self.getNodeValueLayer(len(self.nodes)-1)
 
+    # returns the values of a specified layer of nodes
     def getNodeValueLayer(self, layer):
         vector = []
         for node in self.nodes[layer]:
@@ -275,6 +282,7 @@ class Network:
         for counter, node in enumerate(self.nodes[layerPos]):
             self.nodes[layerPos][counter].value = layer[counter]
 
+    # simply feeding forward an input to an output while sigmoiding each layer once its calculated
     def feedForward(self):
         for counter, layer in enumerate(self.connections):
             for connection in layer:
@@ -282,6 +290,8 @@ class Network:
             sigmoidedLayer = sigmoidLayer(self.getNodeValueLayer(counter+1))
             self.setNodeValueLayer(counter+1, sigmoidedLayer)
 
+    # call this method after creating the new agents, this will slightly adjust the values of each weight to
+    # allow for changes within the agents
     def mutateConnectionWeights(self, mutatePower):
         maxConnection = 0
         for connections in self.connections:
@@ -298,6 +308,7 @@ class Network:
         return self.getOutputs()
 
 
+# TODO: once above code is functional, fix this to be the minimum # of calls possible while maintaing all functionality
 def testXor():
     # inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
     inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
