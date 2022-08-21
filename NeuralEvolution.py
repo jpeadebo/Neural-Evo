@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 bias = 1  # 0 for off 1 for on
 mutatePower = .05
 
+# TODO: add comments to everything
+
 
 class NeuralEvolution:
 
@@ -74,6 +76,7 @@ class NeuralEvolution:
         return parentList
 
     # requires same framework
+    # TODO: rewrite all of this probably
     def createChild(self, dad, mom):
         child = Network(self.framework)
         child2 = Network(self.framework)
@@ -175,14 +178,13 @@ class Network:
         # create a 2d array of nodes where [layer][node] with the last node of each layer being a bias node if requested
 
         self.nodes = []
-        self.setNodes()
+        self.setBaseNodes()
 
         self.connections = []
         self.setBaseConnections()
-        print(self.connections)
 
     # create the initial nodes based on the input framework
-    def setNodes(self):
+    def setBaseNodes(self):
         nodeCounter = 0
         # creates nodes based on the framework
         for counter, layer in enumerate(self.framework):
@@ -248,6 +250,10 @@ class Network:
                         layerConnection.append(connection)
             self.connections.append(layerConnection)
 
+    # TODO: add bounds detection
+    def setConnections(self, connections):
+        self.connections = connections
+
     def setInputs(self, inputs):
         if len(inputs) == len(self.nodes[0]) - bias:
             for inputPos, input in enumerate(inputs):
@@ -264,6 +270,7 @@ class Network:
             vector.append(node.value)
         return vector
 
+    # TODO: add bounds detection
     def setNodeValueLayer(self, layerPos, layer):
         for counter, node in enumerate(self.nodes[layerPos]):
             self.nodes[layerPos][counter].value = layer[counter]
@@ -293,7 +300,7 @@ class Network:
 
 def testXor():
     # inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
-    inputs = [[0, 1, 1], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
+    inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
     hiddenLayer1Length = 2
     hiddenLayer2Length = 2
     numOutputs = 1
