@@ -3,7 +3,8 @@ import random
 from dataclasses import dataclass, field
 
 bias = 1  # 0 for off 1 for on
-mutatePower = .05
+mutatePower = .02
+
 
 # TODO: add comments to everything
 
@@ -25,7 +26,7 @@ class NeuralEvolution:
     def setInputs(self, inputs):
         if len(inputs) == self.genSize:
             for counter, input in enumerate(inputs):
-                self.agents[counter].setInputs(input[:-1])  # update input[:-1] to input once testing is over and
+                self.agents[counter].setInputs(input)
                 # seperate inputs and outputs
         else:
             raise Exception("bad inputs, actual, wanted", len(inputs), self.genSize)
@@ -38,6 +39,7 @@ class NeuralEvolution:
         for agent in self.agents:
             agent.feedForward()
             decisions.append(agent.getOutputs())
+
             # we can reset node values now that we have gotten the nn's decision
         return decisions
 
@@ -87,22 +89,27 @@ class NeuralEvolution:
         # create 2 children, 1 being one mix of mom dad, 2 being the opposite mix of mom dad
         for layerCounter, dConnectionLayer in enumerate(dConnections):
             for connectionCounter, dConnection in enumerate(dConnectionLayer):
-                if dConnection["in"] == mConnections[layerCounter][connectionCounter]["in"] and dConnection["out"] == mConnections[layerCounter][connectionCounter]["out"]:
+                if dConnection["in"] == mConnections[layerCounter][connectionCounter]["in"] and dConnection["out"] == \
+                        mConnections[layerCounter][connectionCounter]["out"]:
                     c1Connections[layerCounter][connectionCounter]["weight"] = (
-                        dConnection["weight"] if (connectionCounter % 2 == 0) else mConnections[layerCounter][connectionCounter]["weight"])
+                        dConnection["weight"] if (connectionCounter % 2 == 0) else
+                        mConnections[layerCounter][connectionCounter]["weight"])
                     c2Connections[layerCounter][connectionCounter]["weight"] = (
-                        dConnection["weight"] if (connectionCounter % 2 == 1) else mConnections[layerCounter][connectionCounter]["weight"])
+                        dConnection["weight"] if (connectionCounter % 2 == 1) else
+                        mConnections[layerCounter][connectionCounter]["weight"])
                 else:
                     raise Exception("incompatible connection: d in, d out, m in, m out", dConnection["in"],
-                                    mConnections[layerCounter][connectionCounter]["in"], dConnection["out"], mConnections[layerCounter][connectionCounter]["out"])
+                                    mConnections[layerCounter][connectionCounter]["in"], dConnection["out"],
+                                    mConnections[layerCounter][connectionCounter]["out"])
         child.setConnections(c1Connections)
         child2.setConnections(c2Connections)
 
         return child, child2
 
-    def mutateAgents(self):
-        for agent in self.agents:
-            agent.mutateConnectionWeights(mutatePower)
+    def mutateAgents(self, bestTwoAgents):
+        for counter, agent in enumerate(self.agents):
+            if counter not in bestTwoAgents:
+                agent.mutateConnectionWeights(mutatePower)
 
     def resetAgents(self):
         for agent in self.agents:
@@ -138,8 +145,9 @@ class NeuralEvolution:
             else:
                 raise Exception("incompatible new gen size, children size:, gen size:", len(children), self.genSize)
 
-            self.mutateAgents()
+            self.mutateAgents(bestAgentsSpot)
         else:
+            print(fitness)
             raise Exception("incorrect number of parents", len(parentList), self.numParents, "parents", parentList)
 
 
@@ -198,6 +206,7 @@ class Network:
                                            "hidden")), nodeCounter))
                 nodeCounter += 1
             # if bias and we aren't on the last layer add a bias node
+
             if bias and not output:
                 nodeLayer.append(Node(1, "bias", nodeCounter))
                 nodeCounter += 1
@@ -214,18 +223,18 @@ class Network:
 
     # updates a specific node based off of its node networkPosition
     def setNodeOffPosition(self, position, value):
-        for layerIndex, layer in enumerate(self.nodes):
-            for nodeIndex, node in enumerate(layer):
-                if node.networkPosition == position:
-                    self.nodes[layerIndex][nodeIndex].value = value
-        return Exception("position doesn't exist", position)
+        self.getNodeOffPosition(position).value = value
+
+    def sumNodeOffPosition(self, position, value):
+        self.getNodeOffPosition(position).value += value
 
     # clear all nodes except bias node which it sets to one
     def clearNodes(self):
         for layerCounter, layer in enumerate(self.nodes):
-            for nodeCounter, node in enumerate(layer[:-bias]):
+            output = layerCounter == len(self.framework) - 1
+            for nodeCounter, node in enumerate(layer[:-bias] if not output else layer):
                 self.nodes[layerCounter][nodeCounter].value = 0
-            if bias:
+            if bias and not output:
                 self.nodes[layerCounter][-1].value = 1
 
     # creates a new connection and assigns all needed information for that connection, skipping if output node is bias
@@ -241,7 +250,7 @@ class Network:
             return 0
 
     # creates the intial set of connections in the form of a 2d array, the first dim is layers,
-        # the second is each connection in that layer
+    # the second is each connection in that layer
     def setBaseConnections(self):
         for layers in range(len(self.framework[:-1])):
             layerConnection = []
@@ -267,9 +276,12 @@ class Network:
         else:
             raise Exception("incompatable input size", len(inputs), len(self.nodes[0]) - bias)
 
+    def getInputs(self):
+        return self.getNodeValueLayer(0)
+
     # uses getNodeValueLayer to return the output layer values
     def getOutputs(self):
-        return self.getNodeValueLayer(len(self.nodes)-1)
+        return self.getNodeValueLayer(len(self.nodes) - 1)
 
     # returns the values of a specified layer of nodes
     def getNodeValueLayer(self, layer):
@@ -278,18 +290,26 @@ class Network:
             vector.append(node.value)
         return vector
 
+    def getNodeValueLayerBiasless(self, layer):
+        vector = []
+        for node in self.nodes[layer]:
+            if not node.nodeType == "bias":
+                vector.append(node.value)
+        return vector
+
     # TODO: add bounds detection
     def setNodeValueLayer(self, layerPos, layer):
         for counter, node in enumerate(self.nodes[layerPos]):
-            self.nodes[layerPos][counter].value = layer[counter]
+            if not node.nodeType == "bias":
+                self.nodes[layerPos][counter].value = layer[counter]
 
     # simply feeding forward an input to an output while sigmoiding each layer once its calculated
     def feedForward(self):
         for counter, layer in enumerate(self.connections):
             for connection in layer:
-                self.setNodeOffPosition(connection["out"], connection["in"] * connection["weight"])
-            sigmoidedLayer = sigmoidLayer(self.getNodeValueLayer(counter+1))
-            self.setNodeValueLayer(counter+1, sigmoidedLayer)
+                self.sumNodeOffPosition(connection["out"], self.getNodeOffPosition(connection["in"]).value * connection["weight"])
+            sigmoidedLayer = sigmoidLayer(self.getNodeValueLayerBiasless(counter + 1))
+            self.setNodeValueLayer(counter + 1, sigmoidedLayer)
 
     # call this method after creating the new agents, this will slightly adjust the values of each weight to
     # allow for changes within the agents
@@ -308,35 +328,59 @@ class Network:
         self.clearNodes()
         self.setInputs(inputs)
         self.feedForward()
+        self.printNodes()
         return self.getOutputs()
+
+    def printNodes(self):
+        for counter, layer in enumerate(self.nodes):
+            print(self.getNodeValueLayer(counter))
 
 
 # TODO: once above code is functional, fix this to be the minimum # of calls possible while maintaing all functionality
-def testXor():
-    # inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
-    inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
-    hiddenLayer1Length = 2
-    hiddenLayer2Length = 2
-    numOutputs = 1
+class TestXor:
+    def __init__(self):
+        # self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
+        self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
+        self.hiddenLayer1Length = 10
+        self.hiddenLayer2Length = 10
+        self.numOutputs = 1
 
-    size = 100
-    network = NeuralEvolution(size, [len(inputs[0]) - 1, hiddenLayer1Length, hiddenLayer2Length, numOutputs])
+        self.size = 50
+        self.network = NeuralEvolution(self.size,
+                                       [len(self.inputs[0]) - 1, self.hiddenLayer1Length, self.hiddenLayer2Length,
+                                        self.numOutputs])
 
-    runs = 100
-    for i in range(runs):
-        print("-----------------------", i, "-----------------------", )
-        # creating inputs, this is a simple problem the agent only needs to check 4 times
+    def calcFitness(self, output, agentDecisions):
+        agentFitness = []
+        for counter in range(len(agentDecisions[0])):
+            agentSum = 0
+            for run in range(len(agentDecisions)):
+                agentSum += abs((1 if agentDecisions[run][counter][0] > .5 else 0) - output[run][-1])
 
-        for i in inputs:
-            input = [i] * size
-            agentDecisions = network.getAgentDecisions(input)
+            agentFitness.append(agentSum / 4.0)
+        return agentFitness
 
-        # need to calculate the error of the agents decisions, we don't care about direction just how close to correct
-        agentFitness = [abs(agent[0] - input[0][len(input[0]) - 1]) for agent in agentDecisions]
+    def runNetwork(self):
 
-        # creates the next generation and updates the agents to that new list of agents
-        network.createNextGeneration(agentFitness)
-        print(agentDecisions)
+        runs = 100000
+        for i in range(runs):
+            print("-----------------------", i, "-----------------------", )
+            # creating inputs, this is a simple problem the agent only needs to check 4 times
+
+            setDecisions = []
+            for i in self.inputs:
+                input = [i[:-1]] * self.size
+                setDecisions.append(self.network.getAgentDecisions(input))
+
+            # need to calculate the error of the agents decisions, we don't care about direction just how close to
+            # correct
+            agentFitness = self.calcFitness(self.inputs, setDecisions)
+            print(agentFitness)
+
+            # creates the next generation and updates the agents to that new list of agents
+            self.network.createNextGeneration(agentFitness)
 
 
-testXor()
+xorTest = TestXor()
+
+xorTest.runNetwork()
