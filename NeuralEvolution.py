@@ -85,15 +85,16 @@ class NeuralEvolution:
         c1Connections = dConnections
         c2Connections = mConnections
         # create 2 children, 1 being one mix of mom dad, 2 being the opposite mix of mom dad
-        for counter, dConnection in enumerate(dConnections):
-            if dConnection["in"] == mConnections[counter]["in"] and dConnection["out"] == mConnections[counter]["out"]:
-                c1Connections[counter]["weight"] = (
-                    dConnection["weight"] if (counter % 2 == 0) else mConnections[counter]["weight"])
-                c2Connections[counter]["weight"] = (
-                    dConnection["weight"] if (counter % 2 == 1) else mConnections[counter]["weight"])
-            else:
-                raise Exception("incompatible connection: d in, d out, m in, m out", dConnection["in"],
-                                mConnections[counter]["in"], dConnection["out"], mConnections[counter]["out"])
+        for layerCounter, dConnectionLayer in enumerate(dConnections):
+            for connectionCounter, dConnection in enumerate(dConnectionLayer):
+                if dConnection["in"] == mConnections[layerCounter][connectionCounter]["in"] and dConnection["out"] == mConnections[layerCounter][connectionCounter]["out"]:
+                    c1Connections[layerCounter][connectionCounter]["weight"] = (
+                        dConnection["weight"] if (connectionCounter % 2 == 0) else mConnections[layerCounter][connectionCounter]["weight"])
+                    c2Connections[layerCounter][connectionCounter]["weight"] = (
+                        dConnection["weight"] if (connectionCounter % 2 == 1) else mConnections[layerCounter][connectionCounter]["weight"])
+                else:
+                    raise Exception("incompatible connection: d in, d out, m in, m out", dConnection["in"],
+                                    mConnections[layerCounter][connectionCounter]["in"], dConnection["out"], mConnections[layerCounter][connectionCounter]["out"])
         child.setConnections(c1Connections)
         child2.setConnections(c2Connections)
 
@@ -294,11 +295,13 @@ class Network:
     # allow for changes within the agents
     def mutateConnectionWeights(self, mutatePower):
         maxConnection = 0
-        for connections in self.connections:
-            maxConnection = connections["weight"] if maxConnection < connections["weight"] else maxConnection
+        for layer in self.connections:
+            for connection in layer:
+                maxConnection = connection["weight"] if maxConnection < connection["weight"] else maxConnection
 
-        for connections in self.connections:
-            connections["weight"] += random.uniform(-maxConnection, maxConnection) * mutatePower
+        for layer in self.connections:
+            for connection in layer:
+                connection["weight"] += random.uniform(-maxConnection, maxConnection) * mutatePower
 
     # first clears the nodes of the network, then adds in inputs and calculates the output for that input
     def executeNN(self, inputs):
