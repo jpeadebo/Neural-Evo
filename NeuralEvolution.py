@@ -326,6 +326,7 @@ def testXor():
     for i in range(runs):
         print("-----------------------", i, "-----------------------", )
         # creating inputs, this is a simple problem the agent only needs to check 4 times
+
         for i in inputs:
             input = [i] * size
             agentDecisions = network.getAgentDecisions(input)
