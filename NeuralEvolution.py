@@ -3,7 +3,7 @@ import random
 from dataclasses import dataclass, field
 
 bias = 1  # 0 for off 1 for on
-mutatePower = .1
+mutatePower = .25
 
 
 # TODO: add comments to everything
@@ -12,7 +12,6 @@ mutatePower = .1
 # using two selected parents combine their layers one by one until a new child is made
 def combineConnections(parents):
     child = []
-    counter = 0
     for counter in range(len(parents[0].connections)):
         if len(parents[0].connections[counter]) == len(parents[1].connections[counter]):
             child.append(parents[0].connections[counter] if counter % 2 == 0 else parents[1].connections[counter])
@@ -53,7 +52,7 @@ class NeuralEvolution:
 
         # number of each type of child generation
         self.elitismNum = int(self.genSize * .1)
-        self.crossoverNum = int(self.genSize * .5)
+        self.crossoverNum = int(self.genSize * .2)
         self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum
 
         self.framework = framework
@@ -343,13 +342,13 @@ class Network:
 # TODO: once above code is functional, fix this to be the minimum # of calls possible while maintaing all functionality
 class TestXor:
     def __init__(self):
-        # self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
-        self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
-        self.hiddenLayer1Length = 15
-        self.hiddenLayer2Length = 15
+        self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
+        #self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
+        self.hiddenLayer1Length = 20
+        self.hiddenLayer2Length = 20
         self.numOutputs = 1
 
-        self.size = 30
+        self.size = 20
         self.network = NeuralEvolution(self.size,
                                        [len(self.inputs[0]) - 1, self.hiddenLayer1Length, self.hiddenLayer2Length,
                                         self.numOutputs])
@@ -361,11 +360,11 @@ class TestXor:
             for run in range(len(agentDecisions)):
                 agentSum += abs(agentDecisions[run][counter][0] - output[run][-1])
 
-            agentScore = agentSum / 4.0
+            agentScore = agentSum / len(self.inputs)
             if agentScore == 1:
                 print("______________________________________________SUCCESS ON ", counter, "_________________________________________")
                 break
-            agentFitness.append(agentSum / 4.0)
+            agentFitness.append(agentScore)
 
         return agentFitness
 
@@ -384,7 +383,6 @@ class TestXor:
             # need to calculate the error of the agents decisions, we don't care about direction just how close to
             # correct
             agentFitness = self.calcFitness(self.inputs, setDecisions)
-            print(agentFitness)
             # creates the next generation and updates the agents to that new list of agents
             self.network.createNextGeneration(agentFitness)
 
