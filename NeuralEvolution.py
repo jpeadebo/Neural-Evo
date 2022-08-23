@@ -3,10 +3,46 @@ import random
 from dataclasses import dataclass, field
 
 bias = 1  # 0 for off 1 for on
-mutatePower = .02
+mutatePower = .05
 
 
 # TODO: add comments to everything
+
+
+# using two selected parents combine their layers one by one until a new child is made
+def combineConnections(parents):
+    child = []
+    counter = 0
+    for counter in range(len(parents[0].connections)):
+        if len(parents[0].connections[counter]) == len(parents[1].connections[counter]):
+            child.append(parents[0].connections[counter] if counter % 2 == 0 else parents[1].connections[counter])
+            counter += 1
+        else:
+            raise Exception("bad combine layers, parent 0, parent 1",
+                            parents[0].connections[counter], parents[1].connections[counter])
+    return child
+
+
+# select two parents that aren't the same based off fitness score
+def getParentsFitness(fitness):
+    parents = []
+    fitnessSum = 0
+    for agents in fitness:
+        fitnessSum += agents[0]
+
+    while len(parents) < 2:
+        randomIndex = random.uniform(0, fitnessSum)
+        for pos, agent in fitness:
+            randomIndex -= pos
+            if randomIndex <= 0 and len(parents) == 0:
+                parents.append(agent)
+            elif randomIndex <= 0 and agent != parents[0]:
+                parents.append(agent)
+    return parents
+
+
+def first(n):
+    return n[0]
 
 
 class NeuralEvolution:
@@ -14,7 +50,12 @@ class NeuralEvolution:
     # creates genSize network of size framework
     def __init__(self, genSize, framework):
         self.genSize = genSize
-        self.numParents = int(genSize * .2)
+
+        # number of each type of child generation
+        self.elitismNum = int(self.genSize * .1)
+        self.crossoverNum = int(self.genSize * .5)
+        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum
+
         self.framework = framework
         self.agents = [Network(self.framework) for _ in range(self.genSize)]
 
@@ -43,112 +84,75 @@ class NeuralEvolution:
             # we can reset node values now that we have gotten the nn's decision
         return decisions
 
-    def pickParents(self, fitness):
-        parents = [0] * self.genSize
+    def elitismChildren(self, fitness):
+        fitness, agent = zip(*fitness)
+        children = [children for children in agent[:self.elitismNum]]
+        return children
 
-        # always include the max fitness agent
-        maxFittnesSpot = fitness.index(max(fitness))
-        parents[maxFittnesSpot] = 1
-        fitness[maxFittnesSpot] = 0
+    # select two parents and combine their layers to generate a new child
+    def crossoverChildren(self, fitness):
+        crossoverChildren = []
 
-        secondMaxFitnessSpot = fitness.index(max(fitness))
-        parents[secondMaxFitnessSpot] = 1
-        fitness[secondMaxFitnessSpot] = 0
-        # pick the remaining parents, current implementation pick a random num 0-sum all fitness, find that agent
-        for i in range(self.numParents - 2):
-            totalFitness = sum(fitness)
-            choice = random.uniform(0, totalFitness)
-            sumFit = 0
-            for counter, agent in enumerate(self.agents):
-                sumFit += fitness[counter]
-                if choice < sumFit:
-                    parents[counter] = 1
-                    fitness[counter] = 0
-                    break
+        for runs in range(self.crossoverNum):
+            child = Network(self.framework)
+            parents = getParentsFitness(fitness)
 
-        # num parents = sum(parents)
-        return parents, [maxFittnesSpot, secondMaxFitnessSpot]
+            child.connections = combineConnections(parents)
 
-    def getParents(self, parents):
-        parentList = []
-        for counter, agent in enumerate(self.agents):
-            if parents[counter] == 1:
-                parentList.append(agent)
+            crossoverChildren.append(child)
+        return crossoverChildren
 
-        return parentList
+    # randomly select one parent based on their fitness
+    def getMutateParent(self, fitness):
+        parent = Network(self.framework)
+        fitnessSum = 0
+        for agents in fitness:
+            fitnessSum += agents[0]
 
-    # requires same framework
-    # TODO: rewrite all of this probably
-    def createChild(self, dad, mom):
-        child = Network(self.framework)
-        child2 = Network(self.framework)
-        dConnections = dad.connections
-        mConnections = mom.connections
-        c1Connections = dConnections
-        c2Connections = mConnections
-        # create 2 children, 1 being one mix of mom dad, 2 being the opposite mix of mom dad
-        for layerCounter, dConnectionLayer in enumerate(dConnections):
-            for connectionCounter, dConnection in enumerate(dConnectionLayer):
-                if dConnection["in"] == mConnections[layerCounter][connectionCounter]["in"] and dConnection["out"] == \
-                        mConnections[layerCounter][connectionCounter]["out"]:
-                    c1Connections[layerCounter][connectionCounter]["weight"] = (
-                        dConnection["weight"] if (connectionCounter % 2 == 0) else
-                        mConnections[layerCounter][connectionCounter]["weight"])
-                    c2Connections[layerCounter][connectionCounter]["weight"] = (
-                        dConnection["weight"] if (connectionCounter % 2 == 1) else
-                        mConnections[layerCounter][connectionCounter]["weight"])
-                else:
-                    raise Exception("incompatible connection: d in, d out, m in, m out", dConnection["in"],
-                                    mConnections[layerCounter][connectionCounter]["in"], dConnection["out"],
-                                    mConnections[layerCounter][connectionCounter]["out"])
-        child.setConnections(c1Connections)
-        child2.setConnections(c2Connections)
+        randomIndex = random.uniform(0, fitnessSum)
+        for pos, agent in fitness:
+            randomIndex -= pos
+            if randomIndex <= 0:
+                parent = agent
+        parent.mutateConnectionWeights(mutatePower)
+        return parent
 
-        return child, child2
+    # select a parent and randomly adjust its weights by a certain power then add it to the children
+    def mutateParents(self, fitness):
+        children = []
+        for runs in range(self.mutationNum):
+            parent = self.getMutateParent(fitness)
+            children.append(parent)
 
-    def mutateAgents(self, bestTwoAgents):
-        for counter, agent in enumerate(self.agents):
-            if counter not in bestTwoAgents:
-                agent.mutateConnectionWeights(mutatePower)
+        return children
 
+    # reset all agents to 0 nodes and bias nodes
     def resetAgents(self):
         for agent in self.agents:
             agent.clearNodes()
 
     # creates new generation using fitness score
     def createNextGeneration(self, fitness):
-        # makes a list of the agents that will be parents
-        parents, bestAgentsSpot = self.pickParents(fitness)
-        parentList = self.getParents(parents)
+        # takes the N best agents and directly copies them to the next generation
 
-        # checks if the correct number of parents were made
-        if len(parentList) == self.numParents:
-            numChildren = self.genSize
+        # create sorted array of agents and their fitness score
+        fitnessAgent = sorted(zip(fitness, self.agents), key=first)
+        fitnessAgent.reverse()
 
-            # creates new agents of the best two agents and sets their connections
-            bestAgentOne = Network(self.framework)
-            bestAgentTwo = Network(self.framework)
-            bestAgentOne.setConnections(self.agents[bestAgentsSpot[0]].connections)
-            bestAgentTwo.setConnections(self.agents[bestAgentsSpot[1]].connections)
+        # use different ways of generating the next generation to increase diversity of agents
+        eliteism = self.elitismChildren(fitnessAgent)
+        crossover = self.crossoverChildren(fitnessAgent)
+        mutation = self.mutateParents(fitnessAgent)
 
-            children = [bestAgentOne, bestAgentTwo]
-            for i in range(int((numChildren - 2) / 2)):
-                # forces consistent amount of uses for each parent, and then a rand other parent
-                dad = parentList[i % len(parentList)]
-                mom = parentList[random.randint(0, len(parentList) - 1)]
-                twins = self.createChild(dad, mom)
-                children.append(twins[0])
-                children.append(twins[1])
+        # add the new children from the different forms of generation
+        children = eliteism + crossover + mutation
 
-            if len(children) == self.genSize:
-                self.agents = children
-            else:
-                raise Exception("incompatible new gen size, children size:, gen size:", len(children), self.genSize)
-
-            self.mutateAgents(bestAgentsSpot)
+        # make sure there is the correct genSize
+        if len(children) != self.genSize:
+            raise Exception("incorrect number of children, actual children num, wanted children num",
+                                                                len(children), self.genSize)
         else:
-            print(fitness)
-            raise Exception("incorrect number of parents", len(parentList), self.numParents, "parents", parentList)
+            self.agents = children
 
 
 # applies sigmoid to the node, however since the network cant handle 0's well we max out the node strength
@@ -341,11 +345,11 @@ class TestXor:
     def __init__(self):
         # self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
         self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
-        self.hiddenLayer1Length = 10
-        self.hiddenLayer2Length = 10
+        self.hiddenLayer1Length = 15
+        self.hiddenLayer2Length = 15
         self.numOutputs = 1
 
-        self.size = 50
+        self.size = 30
         self.network = NeuralEvolution(self.size,
                                        [len(self.inputs[0]) - 1, self.hiddenLayer1Length, self.hiddenLayer2Length,
                                         self.numOutputs])
@@ -355,7 +359,7 @@ class TestXor:
         for counter in range(len(agentDecisions[0])):
             agentSum = 0
             for run in range(len(agentDecisions)):
-                agentSum += abs((1 if agentDecisions[run][counter][0] > .5 else 0) - output[run][-1])
+                agentSum += abs(agentDecisions[run][counter][0] - output[run][-1])
 
             agentFitness.append(agentSum / 4.0)
         return agentFitness
@@ -375,7 +379,6 @@ class TestXor:
             # need to calculate the error of the agents decisions, we don't care about direction just how close to
             # correct
             agentFitness = self.calcFitness(self.inputs, setDecisions)
-            print(agentFitness)
 
             # creates the next generation and updates the agents to that new list of agents
             self.network.createNextGeneration(agentFitness)
