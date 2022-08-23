@@ -3,7 +3,7 @@ import random
 from dataclasses import dataclass, field
 
 bias = 1  # 0 for off 1 for on
-mutatePower = .05
+mutatePower = .1
 
 
 # TODO: add comments to everything
@@ -361,7 +361,12 @@ class TestXor:
             for run in range(len(agentDecisions)):
                 agentSum += abs(agentDecisions[run][counter][0] - output[run][-1])
 
+            agentScore = agentSum / 4.0
+            if agentScore == 1:
+                print("______________________________________________SUCCESS ON ", counter, "_________________________________________")
+                break
             agentFitness.append(agentSum / 4.0)
+
         return agentFitness
 
     def runNetwork(self):
@@ -379,7 +384,7 @@ class TestXor:
             # need to calculate the error of the agents decisions, we don't care about direction just how close to
             # correct
             agentFitness = self.calcFitness(self.inputs, setDecisions)
-
+            print(agentFitness)
             # creates the next generation and updates the agents to that new list of agents
             self.network.createNextGeneration(agentFitness)
 
