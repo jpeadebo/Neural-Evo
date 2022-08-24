@@ -50,13 +50,15 @@ class NeuralEvolution:
     def __init__(self, genSize, framework):
         self.genSize = genSize
 
+        self.framework = framework
+        self.agents = [Network(self.framework) for _ in range(self.genSize)]
+
         # number of each type of child generation
         self.elitismNum = int(self.genSize * .2)
         self.crossoverNum = int(self.genSize * .1)
-        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum
-
-        self.framework = framework
-        self.agents = [Network(self.framework) for _ in range(self.genSize)]
+        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum - 1
+        # this will be the last remaining child of each generation
+        self.bestAgent = 0, self.agents[1]
 
     # acquires the output for each agent
     def getAgentOutputs(self):
@@ -138,6 +140,8 @@ class NeuralEvolution:
         fitnessAgent = sorted(zip(fitness, self.agents), key=first)
         fitnessAgent.reverse()
 
+        self.bestAgent = fitnessAgent[0] if fitnessAgent[0][0] > self.bestAgent[0] else self.bestAgent
+
         # use different ways of generating the next generation to increase diversity of agents
         eliteism = self.elitismChildren(fitnessAgent)
         crossover = self.crossoverChildren(fitnessAgent)
@@ -145,6 +149,7 @@ class NeuralEvolution:
 
         # add the new children from the different forms of generation
         children = eliteism + crossover + mutation
+        children.append(self.bestAgent[1])
 
         # make sure there is the correct genSize
         if len(children) != self.genSize:
