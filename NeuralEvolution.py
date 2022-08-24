@@ -3,7 +3,7 @@ import random
 from dataclasses import dataclass, field
 
 bias = 1  # 0 for off 1 for on
-mutatePower = .25
+mutatePower = .1
 
 
 # TODO: add comments to everything
@@ -51,8 +51,8 @@ class NeuralEvolution:
         self.genSize = genSize
 
         # number of each type of child generation
-        self.elitismNum = int(self.genSize * .1)
-        self.crossoverNum = int(self.genSize * .2)
+        self.elitismNum = int(self.genSize * .2)
+        self.crossoverNum = int(self.genSize * .1)
         self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum
 
         self.framework = framework
@@ -316,15 +316,18 @@ class Network:
 
     # call this method after creating the new agents, this will slightly adjust the values of each weight to
     # allow for changes within the agents
+    # TODO: stop this from having all weights changed
     def mutateConnectionWeights(self, mutatePower):
         maxConnection = 0
         for layer in self.connections:
             for connection in layer:
                 maxConnection = connection["weight"] if maxConnection < connection["weight"] else maxConnection
 
-        for layer in self.connections:
-            for connection in layer:
-                connection["weight"] += random.uniform(-maxConnection, maxConnection) * mutatePower
+        mutateLayer = random.randint(0, len(self.connections) - 1)
+        for count, layer in enumerate(self.connections):
+            if mutateLayer == count:
+                for connection in layer:
+                    connection["weight"] += random.uniform(-maxConnection, maxConnection) * mutatePower
 
     # first clears the nodes of the network, then adds in inputs and calculates the output for that input
     def executeNN(self, inputs):
@@ -345,10 +348,10 @@ class TestXor:
         self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
         #self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
         self.hiddenLayer1Length = 20
-        self.hiddenLayer2Length = 20
+        self.hiddenLayer2Length = 15
         self.numOutputs = 1
 
-        self.size = 20
+        self.size = 15
         self.network = NeuralEvolution(self.size,
                                        [len(self.inputs[0]) - 1, self.hiddenLayer1Length, self.hiddenLayer2Length,
                                         self.numOutputs])
@@ -358,9 +361,9 @@ class TestXor:
         for counter in range(len(agentDecisions[0])):
             agentSum = 0
             for run in range(len(agentDecisions)):
-                agentSum += abs(agentDecisions[run][counter][0] - output[run][-1])
+                agentSum += abs(agentDecisions[run][counter][0] - output[run % len(self.inputs)][-1])
 
-            agentScore = agentSum / len(self.inputs)
+            agentScore = agentSum / len(agentDecisions)
             if agentScore == 1:
                 print("______________________________________________SUCCESS ON ", counter, "_________________________________________")
                 break
@@ -372,17 +375,20 @@ class TestXor:
 
         runs = 100000
         for i in range(runs):
-            print("-----------------------", i, "-----------------------", )
+            if i % 100 == 0:
+                print("-----------------------", i, "-----------------------", )
             # creating inputs, this is a simple problem the agent only needs to check 4 times
 
             setDecisions = []
-            for i in self.inputs:
-                input = [i[:-1]] * self.size
-                setDecisions.append(self.network.getAgentDecisions(input))
+            for _ in range(10):
+                for i in self.inputs:
+                    input = [i[:-1]] * self.size
+                    setDecisions.append(self.network.getAgentDecisions(input))
 
             # need to calculate the error of the agents decisions, we don't care about direction just how close to
             # correct
             agentFitness = self.calcFitness(self.inputs, setDecisions)
+            #print(agentFitness)
             # creates the next generation and updates the agents to that new list of agents
             self.network.createNextGeneration(agentFitness)
 
