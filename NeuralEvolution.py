@@ -3,7 +3,7 @@ import random
 from dataclasses import dataclass, field
 
 bias = 1  # 0 for off 1 for on
-mutatePower = .1
+mutatePower = .5
 
 
 # TODO: add comments to everything
@@ -50,15 +50,13 @@ class NeuralEvolution:
     def __init__(self, genSize, framework):
         self.genSize = genSize
 
-        self.framework = framework
-        self.agents = [Network(self.framework) for _ in range(self.genSize)]
-
         # number of each type of child generation
         self.elitismNum = int(self.genSize * .2)
         self.crossoverNum = int(self.genSize * .1)
-        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum - 1
-        # this will be the last remaining child of each generation
-        self.bestAgent = 0, self.agents[1]
+        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum
+
+        self.framework = framework
+        self.agents = [Network(self.framework) for _ in range(self.genSize)]
 
     # acquires the output for each agent
     def getAgentOutputs(self):
@@ -140,8 +138,6 @@ class NeuralEvolution:
         fitnessAgent = sorted(zip(fitness, self.agents), key=first)
         fitnessAgent.reverse()
 
-        self.bestAgent = fitnessAgent[0] if fitnessAgent[0][0] > self.bestAgent[0] else self.bestAgent
-
         # use different ways of generating the next generation to increase diversity of agents
         eliteism = self.elitismChildren(fitnessAgent)
         crossover = self.crossoverChildren(fitnessAgent)
@@ -149,7 +145,6 @@ class NeuralEvolution:
 
         # add the new children from the different forms of generation
         children = eliteism + crossover + mutation
-        children.append(self.bestAgent[1])
 
         # make sure there is the correct genSize
         if len(children) != self.genSize:
@@ -329,10 +324,9 @@ class Network:
                 maxConnection = connection["weight"] if maxConnection < connection["weight"] else maxConnection
 
         mutateLayer = random.randint(0, len(self.connections) - 1)
-        for count, layer in enumerate(self.connections):
-            if mutateLayer == count:
-                for connection in layer:
-                    connection["weight"] += random.uniform(-maxConnection, maxConnection) * mutatePower
+
+        for connection in self.connections[mutateLayer]:
+            connection["weight"] += random.uniform(-maxConnection, maxConnection) * mutatePower
 
     # first clears the nodes of the network, then adds in inputs and calculates the output for that input
     def executeNN(self, inputs):
@@ -350,10 +344,10 @@ class Network:
 # TODO: once above code is functional, fix this to be the minimum # of calls possible while maintaing all functionality
 class TestXor:
     def __init__(self):
-        self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
-        #self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
-        self.hiddenLayer1Length = 20
-        self.hiddenLayer2Length = 15
+        #self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
+        self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
+        self.hiddenLayer1Length = 10
+        self.hiddenLayer2Length = 10
         self.numOutputs = 1
 
         self.size = 15
@@ -385,10 +379,9 @@ class TestXor:
             # creating inputs, this is a simple problem the agent only needs to check 4 times
 
             setDecisions = []
-            for _ in range(10):
-                for i in self.inputs:
-                    input = [i[:-1]] * self.size
-                    setDecisions.append(self.network.getAgentDecisions(input))
+            for i in self.inputs:
+                input = [i[:-1]] * self.size
+                setDecisions.append(self.network.getAgentDecisions(input))
 
             # need to calculate the error of the agents decisions, we don't care about direction just how close to
             # correct
