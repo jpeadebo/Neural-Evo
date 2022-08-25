@@ -3,7 +3,6 @@ import random
 from dataclasses import dataclass, field
 
 bias = 1  # 0 for off 1 for on
-mutatePower = .5
 
 
 # TODO: add comments to everything
@@ -50,13 +49,31 @@ class NeuralEvolution:
     def __init__(self, genSize, framework):
         self.genSize = genSize
 
+        self.mutationPower = .5
         # number of each type of child generation
-        self.elitismNum = int(self.genSize * .2)
-        self.crossoverNum = int(self.genSize * .1)
-        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum
+        self.elitismNum = int(self.genSize * .1)
+        self.crossoverNum = int(self.genSize * .2)
+        # the remaining agents become mutation, we also remove one to always put the best agent back in
+        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum - 1
 
         self.framework = framework
         self.agents = [Network(self.framework) for _ in range(self.genSize)]
+        self.bestAgent = [0, self.agents[0]]
+
+    def adjustRatios(self, elitismNum, crossoverNum, mutatePower):
+        self.elitismNum = elitismNum
+        self.crossoverNum = crossoverNum
+        self.mutationNum = self.genSize - self.elitismNum - self.crossoverNum - 1
+        self.mutationPower = mutatePower
+
+    def networkRatioAdjustment(self):
+        elitismNum = int(self.genSize * (.5 - (self.bestAgent[0] / 2)))
+        crossoverNum = int(self.genSize * (.5 - (self.bestAgent[0] / 2)))
+        mutationPower = self.bestAgent[0] + .1
+
+        self.adjustRatios(elitismNum,crossoverNum,mutationPower)
+
+        # adjust elitism to have keep the best adgents
 
     # acquires the output for each agent
     def getAgentOutputs(self):
@@ -113,7 +130,7 @@ class NeuralEvolution:
             randomIndex -= pos
             if randomIndex <= 0:
                 parent = agent
-        parent.mutateConnectionWeights(mutatePower)
+        parent.mutateConnectionWeights(self.mutationPower)
         return parent
 
     # select a parent and randomly adjust its weights by a certain power then add it to the children
@@ -138,6 +155,7 @@ class NeuralEvolution:
         fitnessAgent = sorted(zip(fitness, self.agents), key=first)
         fitnessAgent.reverse()
 
+        self.bestAgent = fitnessAgent[0] if fitnessAgent[0][0] > self.bestAgent[0] else self.bestAgent
         # use different ways of generating the next generation to increase diversity of agents
         eliteism = self.elitismChildren(fitnessAgent)
         crossover = self.crossoverChildren(fitnessAgent)
@@ -145,7 +163,7 @@ class NeuralEvolution:
 
         # add the new children from the different forms of generation
         children = eliteism + crossover + mutation
-
+        children.append(self.bestAgent[1])
         # make sure there is the correct genSize
         if len(children) != self.genSize:
             raise Exception("incorrect number of children, actual children num, wanted children num",
@@ -344,13 +362,13 @@ class Network:
 # TODO: once above code is functional, fix this to be the minimum # of calls possible while maintaing all functionality
 class TestXor:
     def __init__(self):
-        #self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
-        self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
-        self.hiddenLayer1Length = 10
-        self.hiddenLayer2Length = 10
+        self.inputs = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0],[1, 1, 1, 1]]
+        #self.inputs = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
+        self.hiddenLayer1Length = 25
+        self.hiddenLayer2Length = 20
         self.numOutputs = 1
 
-        self.size = 15
+        self.size = 7
         self.network = NeuralEvolution(self.size,
                                        [len(self.inputs[0]) - 1, self.hiddenLayer1Length, self.hiddenLayer2Length,
                                         self.numOutputs])
@@ -371,11 +389,11 @@ class TestXor:
         return agentFitness
 
     def runNetwork(self):
-
-        runs = 100000
+        runs = 10000
         for i in range(runs):
-            if i % 100 == 0:
-                print("-----------------------", i, "-----------------------", )
+            if i % 10 == 0:
+                print("-----------------------", i, "-----------------------")
+                print(self.network.bestAgent)
             # creating inputs, this is a simple problem the agent only needs to check 4 times
 
             setDecisions = []
@@ -386,7 +404,7 @@ class TestXor:
             # need to calculate the error of the agents decisions, we don't care about direction just how close to
             # correct
             agentFitness = self.calcFitness(self.inputs, setDecisions)
-            #print(agentFitness)
+            #self.network.networkRatioAdjustment()
             # creates the next generation and updates the agents to that new list of agents
             self.network.createNextGeneration(agentFitness)
 
